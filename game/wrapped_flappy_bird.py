@@ -154,6 +154,7 @@ class FlappyBirdEnvWrapper(GameState):
         self.gray = gray
         self.resize = resize
         self.frames = deque(maxlen=num_stack)
+        _ = self.reset()
 
     def reset(self):
         # 使用父类frame_step的静止动作初始化环境状态
@@ -169,17 +170,20 @@ class FlappyBirdEnvWrapper(GameState):
         obs, reward, done = self.frame_step(action)
         frame = self._preprocess(obs)
         self.frames.append(frame)
+        print(self.frames)
         return self._get_obs(), reward, done
 
     def _preprocess(self, img):
+        # 转置数组维度，修正pygame和opencv格式差异
+        img = np.transpose(img, (1, 0, 2))  # (W, H, 3) -> (H, W, 3)
         img = cv2.resize(img, self.resize)
         if self.gray:
             img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-            img = np.expand_dims(img, axis=-1)  # 变成 (H, W, 1)
+            img = np.expand_dims(img, axis=-1)  # (H, W, 1)
         else:
-            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)  # 转为RGB方便显示或网络输入
         return img.astype(np.uint8)
-
+    
     def _get_obs(self):
         if self.num_stack > 1:
             return np.concatenate(list(self.frames), axis=2)  # 堆叠在最后一维
@@ -232,7 +236,7 @@ def checkCrash(player, upperPipes, lowerPipes):
     else:
 
         playerRect = pygame.Rect(player['x'], player['y'],
-                      player['w'], player['h'])
+                    player['w'], player['h'])
 
         for uPipe, lPipe in zip(upperPipes, lowerPipes):
             # upper and lower pipe rects
