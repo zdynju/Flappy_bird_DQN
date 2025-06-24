@@ -66,6 +66,7 @@ def trainNetwork(model):
 
     # get the first state by doing nothing and preprocess the image to 80x80x4
     s_t = game_state.reset()
+    print(s_t.shape)
     # x_t, r_0, terminal = game_state.step(do_nothing)
     # x_t = cv2.cvtColor(cv2.resize(x_t, (80, 80)), cv2.COLOR_BGR2GRAY)
     # ret, x_t = cv2.threshold(x_t, 1, 255, cv2.THRESH_BINARY)
@@ -82,7 +83,7 @@ def trainNetwork(model):
     epsilon = INITIAL_EPSILON
     t = 0
     while "flappy bird" != "angry bird":
-
+        print(s_t.shape)
         # choose an action epsilon greedily
         state = s_t.astype('float32').reshape(1, 80, 80, 4) / 255.0  # 归一化输入
         readout_t = model.predict(state, verbose=0)
@@ -107,7 +108,7 @@ def trainNetwork(model):
         # run the selected action and observe next state and reward
         
         s_t1, r_t, terminal = game_state.step(a_t)
-
+        print("s_t1:",s_t1.shape)
         # store the transition in D
         D.append((s_t, a_t, r_t, s_t1, terminal))
         if len(D) > REPLAY_MEMORY:
