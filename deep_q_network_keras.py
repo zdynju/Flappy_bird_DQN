@@ -14,7 +14,22 @@ from collections import deque
 import os
 import gc
 import datetime
-
+def setup_gpu():
+    gpus = tf.config.list_physical_devices('GPU')
+    print("CUDA 版本:", tf.sysconfig.get_build_info()["cuda_version"])
+    print("cuDNN 版本:", tf.sysconfig.get_build_info()["cudnn_version"])
+    if gpus:
+        print(f"检测到 {len(gpus)} 个 GPU 可用:")
+        try:
+            for gpu in gpus:
+                tf.config.experimental.set_memory_growth(gpu, True)
+            logical_gpus = tf.config.list_logical_devices('GPU')
+            print(f"已启用显存自增长，逻辑 GPU 数量: {len(logical_gpus)}")
+        except RuntimeError as e:
+            print(f"设置显存自增长失败: {e}")
+    else:
+        print("未检测到 GPU，使用 CPU 训练。")
+        
 GAME = 'bird'
 ACTIONS = 2
 GAMMA = 0.99
@@ -147,6 +162,7 @@ def playGame():
     trainNetwork(model)
 
 def main():
+    setup_gpu()
     playGame()
 
 if __name__ == "__main__":
