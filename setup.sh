@@ -18,7 +18,8 @@ pip install numpy==1.26.4
 echo "安装TensorFlow和相关包..."
 # 安装TensorFlow和GPU支持
 pip install tensorflow==2.15.0
-pip install nvidia-cudnn-cu12==8.9.2.26
+conda install -c conda-forge cudatoolkit=11.8 cudnn=8.9
+
 
 # 安装tensorboard (匹配TensorFlow版本)
 pip install tensorboard==2.15.0
