@@ -16,19 +16,18 @@ SCREENWIDTH = 288
 SCREENHEIGHT = 512
 
 IMAGES, SOUNDS, HITMASKS = None, None, None
-
+os.environ["SDL_VIDEODRIVER"] = "dummy"
 # 先用无头模式初始化pygame和显示
 if not pygame.get_init():
     pygame.init()
-    os.environ["SDL_VIDEODRIVER"] = "dummy"
+    
     pygame.display.set_mode((1, 1))
 
 # 加载资源
 IMAGES, SOUNDS, HITMASKS = flappy_bird_utils.load()
 
 # 加载后，去掉无头模式，方便后续正常窗口显示
-if "SDL_VIDEODRIVER" in os.environ:
-    del os.environ["SDL_VIDEODRIVER"]
+
 
 pygame.display.set_caption('Flappy Bird')
 FPSCLOCK = pygame.time.Clock()
@@ -49,6 +48,8 @@ class GameState:
 
         if self.render_mode == 'human':
             # human模式下显示窗口
+            if "SDL_VIDEODRIVER" in os.environ:
+                del os.environ["SDL_VIDEODRIVER"]
             pygame.display.quit()  # 先关闭无头窗口
             pygame.display.init()
             self.screen = pygame.display.set_mode((SCREENWIDTH, SCREENHEIGHT))
