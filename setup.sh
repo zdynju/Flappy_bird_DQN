@@ -45,6 +45,12 @@ print('TensorFlow:', tf.__version__)
 print('NumPy:', np.__version__)
 print('OpenCV:', cv2.__version__)
 print('Pygame:', pygame.__version__)
+print("GPU设备列表:", tf.config.list_physical_devices('GPU'))
+# 简单张量计算测试
+a = tf.constant([1.0, 2.0])
+b = tf.constant([3.0, 4.0])
+c = a + b
+print("计算结果:", c.numpy())
 print('GPU可用:', len(tf.config.list_physical_devices('GPU')) > 0)
 print('环境安装成功！')
 "
