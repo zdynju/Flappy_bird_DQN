@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 from __future__ import print_function
-import tensorflow
+import tensorflow as tf
 import tensorflow.keras as keras
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras import backend as K
@@ -12,80 +12,52 @@ import random
 import numpy as np
 from collections import deque
 import os
-import keyboard
 import gc
+import datetime
 
-import wandb
-#rom wandb.keras import WandbCallback
-
-GAME = 'bird'  # the name of the game being played for log files
-ACTIONS = 2  # number of valid actions
-GAMMA = 0.99  # decay rate of past observations
-OBSERVE = 10000.  # timesteps to observe before training
-EXPLORE = 500000.  # 减少探索时间，原来是2000000太长了
-FINAL_EPSILON = 0.0001  # 提高最终epsilon，保持一定探索
-INITIAL_EPSILON = 0.1  # starting value of epsilon
-REPLAY_MEMORY = 50000  # number of previous transitions to remember
-BATCH = 32  # 减小batch size，提高训练频率
+GAME = 'bird'
+ACTIONS = 2
+GAMMA = 0.99
+OBSERVE = 10000.
+EXPLORE = 300000.
+FINAL_EPSILON = 0.0001
+INITIAL_EPSILON = 0.1
+REPLAY_MEMORY = 50000
+BATCH = 32
 FRAME_PER_ACTION = 1
-LEARNING_RATE = 1e-4  # 提高学习率，原来1e-6太小
-TARGET_UPDATE_FREQ = 1000
-
+LEARNING_RATE = 1e-4
+TARGET_UPDATE_FREQ = 5000
 
 def createNetwork():
-    model = tensorflow.keras.Sequential([
+    model = keras.Sequential([
         keras.Input(shape=(80, 80, 4)),
-        keras.layers.Conv2D(32, (8, 8), strides=(4, 4), padding='same', activation='relu',
-                        kernel_initializer='he_normal'),
-        keras.layers.Conv2D(64, (4, 4), strides=(2, 2), padding='same', activation='relu',
-                        kernel_initializer='he_normal'),
-        keras.layers.Conv2D(64, (3, 3), padding='same', activation='relu',
-                        kernel_initializer='he_normal'),
+        keras.layers.Conv2D(32, (8, 8), strides=(4, 4), padding='same', activation='relu', kernel_initializer='he_normal'),
+        keras.layers.Conv2D(64, (4, 4), strides=(2, 2), padding='same', activation='relu', kernel_initializer='he_normal'),
+        keras.layers.Conv2D(64, (3, 3), padding='same', activation='relu', kernel_initializer='he_normal'),
         keras.layers.Flatten(),
         keras.layers.Dense(512, activation='relu', kernel_initializer='he_normal'),
         keras.layers.Dense(ACTIONS, activation='linear', kernel_initializer='he_normal')
     ])
-    model.compile(loss='mse',
-                optimizer=Adam(learning_rate=LEARNING_RATE))
+    model.compile(loss='mse', optimizer=Adam(learning_rate=LEARNING_RATE))
     return model
-
 
 def trainNetwork(model):
     target_model = createNetwork()
     target_model.set_weights(model.get_weights())
-    log_dir = "logs_" + GAME
-    if not os.path.exists(log_dir):
-        os.makedirs(log_dir)
+
+    log_dir = os.path.join("logs_tensorboard", datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
+    summary_writer = tf.summary.create_file_writer(log_dir)
 
     game_state = game.FlappyBirdEnvWrapper(num_stack=4, gray=True)
     D = deque()
 
-    a_file = open(os.path.join(log_dir, "readout.txt"), 'w')
-    h_file = open(os.path.join(log_dir, "hidden.txt"), 'w')
-
     s_t = game_state.reset()
-
-    try:
-        model.load_weights('test.h5')
-        target_model.set_weights(model.get_weights())
-        print("Successfully loaded weights")
-    except:
-        print("Could not find old network weights")
-
-    # 初始化 wandb
-    wandb.init(project="flappybird-dqn", config={
-        "learning_rate": LEARNING_RATE,
-        "batch_size": BATCH,
-        "gamma": GAMMA,
-        "actions": ACTIONS,
-        "epsilon_start": INITIAL_EPSILON,
-        "epsilon_final": FINAL_EPSILON,
-    })
-
     epsilon = INITIAL_EPSILON
     t = 0
-    while "flappy bird" != "angry bird":
-        # print(s_t.shape)
+    episode_reward = 0
+    episode_count = 0
+
+    while True:
         state = s_t.astype('float32').reshape(1, 80, 80, 4) / 255.0
         readout_t = model.predict(state, verbose=0)
         a_t = np.zeros([ACTIONS])
@@ -106,6 +78,7 @@ def trainNetwork(model):
             epsilon -= (INITIAL_EPSILON - FINAL_EPSILON) / EXPLORE
 
         s_t1, r_t, terminal = game_state.step(a_t)
+        episode_reward += r_t
 
         D.append((s_t, a_t, r_t, s_t1, terminal))
         if len(D) > REPLAY_MEMORY:
@@ -139,6 +112,18 @@ def trainNetwork(model):
         s_t = s_t1
         t += 1
 
+        # 每步写入当前 epsilon 和 Q 值信息
+        with summary_writer.as_default():
+            tf.summary.scalar("epsilon", epsilon, step=t)
+
+        if terminal:
+            print("Episode finished after {} timesteps".format(t))
+            episode_count += 1
+            with summary_writer.as_default():
+                tf.summary.scalar("episode_reward", episode_reward, step=episode_count)
+            print(f"[Episode {episode_count}] Total Reward: {episode_reward:.2f}")
+            episode_reward = 0
+
         if t % TARGET_UPDATE_FREQ == 0:
             target_model.set_weights(model.get_weights())
             print(f"Target network updated at timestep {t}")
@@ -147,23 +132,7 @@ def trainNetwork(model):
             model.save('test.h5')
             print(f"Model saved at timestep {t}")
 
-        # wandb 记录日志
-        wandb.log({
-            "timestep": t,
-            "reward": r_t,
-            "epsilon": epsilon,
-            "q_max": float(np.max(readout_t)),
-            "q_min": float(np.min(readout_t)),
-        })
-
-        state_str = ""
-        if t <= OBSERVE:
-            state_str = "observe"
-        elif t > OBSERVE and t <= OBSERVE + EXPLORE:
-            state_str = "explore"
-        else:
-            state_str = "train"
-
+        state_str = "observe" if t <= OBSERVE else "explore" if t <= OBSERVE + EXPLORE else "train"
         print("TIMESTEP", t, "/ STATE", state_str,
               "/ EPSILON", round(epsilon, 4), "/ ACTION", action_index, "/ REWARD", r_t,
               "/ Q_MAX %.4f" % np.max(readout_t),
@@ -173,17 +142,12 @@ def trainNetwork(model):
             K.clear_session()
             gc.collect()
 
-    wandb.finish()
-
-
 def playGame():
     model = createNetwork()
     trainNetwork(model)
 
-
 def main():
     playGame()
-
 
 if __name__ == "__main__":
     main()
