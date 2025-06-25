@@ -15,42 +15,49 @@ FPS = 30
 SCREENWIDTH = 288
 SCREENHEIGHT = 512
 
-# 设置环境变量以支持无头模式（无图形界面）
-if not os.environ.get("SDL_VIDEODRIVER"):
+IMAGES, SOUNDS, HITMASKS = None, None, None
+
+# 先用无头模式初始化pygame和显示
+if not pygame.get_init():
+    pygame.init()
     os.environ["SDL_VIDEODRIVER"] = "dummy"
+    pygame.display.set_mode((1, 1))
 
-pygame.init()
-FPSCLOCK = pygame.time.Clock()
-pygame.display.set_mode((1, 1)) 
-
+# 加载资源
 IMAGES, SOUNDS, HITMASKS = flappy_bird_utils.load()
+
+# 加载后，去掉无头模式，方便后续正常窗口显示
+if "SDL_VIDEODRIVER" in os.environ:
+    del os.environ["SDL_VIDEODRIVER"]
+
+pygame.display.set_caption('Flappy Bird')
+FPSCLOCK = pygame.time.Clock()
+
+# 一些常量
 PIPEGAPSIZE = 100
 BASEY = SCREENHEIGHT * 0.79
-
 PLAYER_WIDTH = IMAGES['player'][0].get_width()
 PLAYER_HEIGHT = IMAGES['player'][0].get_height()
 PIPE_WIDTH = IMAGES['pipe'][0].get_width()
 PIPE_HEIGHT = IMAGES['pipe'][0].get_height()
 BACKGROUND_WIDTH = IMAGES['background'].get_width()
-
 PLAYER_INDEX_GEN = cycle([0, 1, 2, 1])
-
 
 class GameState:
     def __init__(self, render_mode='server'):
         self.render_mode = render_mode
 
-
         if self.render_mode == 'human':
+            # human模式下显示窗口
+            pygame.display.quit()  # 先关闭无头窗口
+            pygame.display.init()
             self.screen = pygame.display.set_mode((SCREENWIDTH, SCREENHEIGHT))
         else:
+            # server模式无窗口，使用Surface画布
             self.screen = pygame.Surface((SCREENWIDTH, SCREENHEIGHT))
 
-        pygame.display.set_caption('Flappy Bird')
-        
         self.reset_game()
-        
-        
+
     def reset_game(self):
         self.score = self.playerIndex = self.loopIter = 0
         self.playerx = int(SCREENWIDTH * 0.2)
@@ -76,7 +83,7 @@ class GameState:
         self.playerAccY = 1
         self.playerFlapAcc = -9
         self.playerFlapped = False
-        
+
     def frame_step(self, input_actions):
         pygame.event.pump()
 
@@ -145,6 +152,8 @@ class GameState:
         FPSCLOCK.tick(FPS)
 
         return image_data, reward, terminal
+
+
 
 
 class FlappyBirdEnvWrapper(GameState):
