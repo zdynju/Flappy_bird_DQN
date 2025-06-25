@@ -39,6 +39,19 @@ PLAYER_INDEX_GEN = cycle([0, 1, 2, 1])
 class GameState:
     def __init__(self, render_mode='server'):
         self.render_mode = render_mode
+
+
+        if self.render_mode == 'human':
+            self.screen = pygame.display.set_mode((SCREENWIDTH, SCREENHEIGHT))
+        else:
+            self.screen = pygame.Surface((SCREENWIDTH, SCREENHEIGHT))
+
+        pygame.display.set_caption('Flappy Bird')
+        
+        self.reset_game()
+        
+        
+    def reset_game(self):
         self.score = self.playerIndex = self.loopIter = 0
         self.playerx = int(SCREENWIDTH * 0.2)
         self.playery = int((SCREENHEIGHT - PLAYER_HEIGHT) / 2)
@@ -63,14 +76,7 @@ class GameState:
         self.playerAccY = 1
         self.playerFlapAcc = -9
         self.playerFlapped = False
-
-        if self.render_mode == 'human':
-            self.screen = pygame.display.set_mode((SCREENWIDTH, SCREENHEIGHT))
-        else:
-            self.screen = pygame.Surface((SCREENWIDTH, SCREENHEIGHT))
-
-        pygame.display.set_caption('Flappy Bird')
-
+        
     def frame_step(self, input_actions):
         pygame.event.pump()
 
@@ -121,7 +127,7 @@ class GameState:
                              self.upperPipes, self.lowerPipes)
         if isCrash:
             terminal = True
-            self.__init__(render_mode=self.render_mode)
+            self.reset_game()
             reward = -1
 
         self.screen.blit(IMAGES['background'], (0, 0))
@@ -152,6 +158,7 @@ class FlappyBirdEnvWrapper(GameState):
         self.reset()
 
     def reset(self):
+        self.reset_game()
         obs, _, _ = self.frame_step(np.array([1, 0]))  # 静止动作
         frame = self._preprocess(obs)
         self.frames.clear()
