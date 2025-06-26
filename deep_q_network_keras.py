@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 from __future__ import print_function
 import tensorflow as tf
-import tensorflow.keras as keras
-from tensorflow.keras.optimizers import Adam
-from tensorflow.keras import backend as K
+import  keras
+from keras.optimizers import Adam
+from keras import backend as K
 import cv2
 import sys
 sys.path.append("game/")
