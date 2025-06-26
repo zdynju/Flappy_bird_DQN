@@ -19,7 +19,25 @@ echo "安装TensorFlow和相关包..."
 # 安装TensorFlow和GPU支持
 pip install tensorflow==2.15.0
 conda install -c conda-forge cudatoolkit=11.8 cudnn=8.9
+# 查找 libdevice.10.bc
+libdevice_path=$(find "$CONDA_PREFIX" -name "libdevice.10.bc" 2>/dev/null | head -1)
 
+if [ -z "$libdevice_path" ]; then
+    echo "❌ 未找到 libdevice.10.bc，可能 cudatoolkit 安装不完整"
+    exit 1
+else
+    echo "✅ 找到 libdevice at: $libdevice_path"
+fi
+
+# 删除已有软链接或文件
+if [ -e ./libdevice.10.bc ]; then
+    echo "⚠️  已存在 ./libdevice.10.bc，将其删除重建"
+    rm ./libdevice.10.bc
+fi
+
+# 创建软链接
+ln -s "$libdevice_path" ./libdevice.10.bc
+echo "✅ 软链接已创建: ./libdevice.10.bc -> $libdevice_path"
 
 # 安装tensorboard (匹配TensorFlow版本)
 pip install tensorboard==2.15.0
