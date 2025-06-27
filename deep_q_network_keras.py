@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 from __future__ import print_function
 import tensorflow as tf
-import  keras
-from keras.optimizers import Adam
-from keras import backend as K
+import tensorflow.keras as keras
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras import backend as K
 import cv2
 import sys
 sys.path.append("game/")
@@ -34,7 +34,7 @@ GAME = 'bird'
 ACTIONS = 2
 GAMMA = 0.99
 OBSERVE = 10000.
-EXPLORE = 300000.
+EXPLORE = 500000.
 FINAL_EPSILON = 0.0001
 INITIAL_EPSILON = 0.1
 REPLAY_MEMORY = 50000
@@ -43,6 +43,31 @@ FRAME_PER_ACTION = 1
 LEARNING_RATE = 1e-4
 TARGET_UPDATE_FREQ = 5000
 
+
+# class FlappyBirdLearningRateScheduler:
+#     def __init__(self, observe_steps, explore_steps):
+#         self.observe_steps = observe_steps
+#         self.explore_steps = explore_steps
+        
+#     def __call__(self, step):
+#         if step <= self.observe_steps:
+#             return 1e-4
+#         elif step <= self.observe_steps + self.explore_steps * 0.2:
+#             # 刚开始训练：极低学习率，因为经验还是以"快速死亡"为主
+#             return 5e-5
+#         elif step <= self.observe_steps + self.explore_steps * 0.5:
+#             # 探索前期：低学习率，开始学习基础生存
+#             return 1e-4
+#         elif step <= self.observe_steps + self.explore_steps * 0.7:
+#             # 探索中期：中等学习率，能过柱子后加快学习
+#             return 2e-4
+#         elif step <= self.observe_steps + self.explore_steps:
+#             # 探索后期：高学习率，优化策略
+#             return 1e-4
+#         else:
+#             # 收敛期：中等学习率，保持稳定
+#             return 1e-4
+        
 def createNetwork():
     model = keras.Sequential([
         keras.Input(shape=(80, 80, 4)),
@@ -59,7 +84,7 @@ def createNetwork():
 def trainNetwork(model):
     target_model = createNetwork()
     target_model.set_weights(model.get_weights())
-
+    # lr_scheduler = FlappyBirdLearningRateScheduler(OBSERVE, EXPLORE)
     log_dir = os.path.join("logs_tensorboard", datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
     summary_writer = tf.summary.create_file_writer(log_dir)
 
@@ -71,7 +96,9 @@ def trainNetwork(model):
     t = 0
     episode_reward = 0
     episode_count = 0
-
+    last_lr_update = 0
+    
+    
     while True:
         state = s_t.astype('float32').reshape(1, 80, 80, 4) / 255.0
         readout_t = model.predict(state, verbose=0)
@@ -98,6 +125,16 @@ def trainNetwork(model):
         D.append((s_t, a_t, r_t, s_t1, terminal))
         if len(D) > REPLAY_MEMORY:
             D.popleft()
+            
+        # if t - last_lr_update >= 1000:  # 每1000步检查一次
+        #     # new_lr = lr_scheduler(t)
+        #     current_lr = K.get_value(model.optimizer.learning_rate)
+        #     if abs(new_lr - current_lr) > 1e-6:  # 避免频繁设置相同值
+        #         K.set_value(model.optimizer.learning_rate, new_lr)
+        #         print(f"Learning rate updated to {new_lr:.6f} at timestep {t}")
+        #         last_lr_update = t
+        #     with summary_writer.as_default():
+        #         tf.summary.scalar("lr", new_lr, step=t)
 
         if t > OBSERVE:
             minibatch = random.sample(D, BATCH)
@@ -122,7 +159,10 @@ def trainNetwork(model):
                 else:
                     target_q_values[i][action_i] = r_batch[i] + GAMMA * np.max(next_q_values[i])
 
-            model.train_on_batch(state_batch, target_q_values)
+            loss = model.train_on_batch(state_batch, target_q_values)
+
+            with summary_writer.as_default():
+                tf.summary.scalar("loss", loss, step=t)
 
         s_t = s_t1
         t += 1
@@ -130,6 +170,8 @@ def trainNetwork(model):
         # 每步写入当前 epsilon 和 Q 值信息
         with summary_writer.as_default():
             tf.summary.scalar("epsilon", epsilon, step=t)
+            tf.summary.scalar("Q_max", np.max(readout_t), step=t)
+            tf.summary.scalar("Q_min", np.min(readout_t), step=t)
 
         if terminal:
             print("Episode finished after {} timesteps".format(t))
@@ -144,7 +186,7 @@ def trainNetwork(model):
             print(f"Target network updated at timestep {t}")
 
         if t % 10000 == 0:
-            model.save('test.h5')
+            model.save(f'test{t}.h5')
             print(f"Model saved at timestep {t}")
 
         state_str = "observe" if t <= OBSERVE else "explore" if t <= OBSERVE + EXPLORE else "train"
